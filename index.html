@@ -13,6 +13,11 @@
         <h1>온라인 오목</h1>
         
         <div id="connection-panel">
+            <div class="mode-selection">
+                <button id="ai-mode-btn">AI와 대결하기 (혼자하기)</button>
+                <div class="divider">또는 온라인 대전</div>
+            </div>
+            
             <div class="status-box">
                 <p id="my-peer-id-display">내 ID: <span id="my-peer-id" class="code">생성 중...</span></p>
                 <button id="copy-id-btn">ID 복사</button>
@@ -28,6 +33,7 @@
 
         <div id="game-area" class="hidden">
             <div class="game-info">
+                <button id="back-to-menu-btn">메뉴로</button>
                 <span id="turn-indicator">대기 중...</span>
                 <button id="reset-btn" style="display: none;">다시 하기</button>
             </div>

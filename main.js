@@ -7,8 +7,9 @@ let myId = null;
 const BOARD_SIZE = 15;
 let board = [];
 let currentPlayer = 'black'; // 'black' goes first
-let myColor = null; // Assigned when connection is established
+let myColor = 'black'; // Assigned when connection is established or AI mode
 let gameActive = false;
+let gameMode = 'online'; // 'online' or 'ai'
 
 // DOM Elements
 const myPeerIdEl = document.getElementById('my-peer-id');
@@ -21,6 +22,8 @@ const gameArea = document.getElementById('game-area');
 const boardEl = document.getElementById('board');
 const turnIndicator = document.getElementById('turn-indicator');
 const resetBtn = document.getElementById('reset-btn');
+const aiModeBtn = document.getElementById('ai-mode-btn');
+const backToMenuBtn = document.getElementById('back-to-menu-btn');
 
 // --- PeerJS Connection Setup ---
 
@@ -32,15 +35,10 @@ peer.on('open', (id) => {
 
 peer.on('connection', (connection) => {
     handleConnection(connection);
-    // If I received a connection, I am the Host (Black)
-    myColor = 'black';
+    myColor = 'black'; // If I received a connection, I am Host (Black)
+    gameMode = 'online';
     statusEl.textContent = "상대방이 연결되었습니다! 게임을 시작합니다.";
     startGame();
-});
-
-peer.on('error', (err) => {
-    console.error(err);
-    alert("오류가 발생했습니다: " + err.type);
 });
 
 connectBtn.addEventListener('click', () => {
@@ -49,31 +47,29 @@ connectBtn.addEventListener('click', () => {
     
     const connection = peer.connect(opponentId);
     handleConnection(connection);
-    // If I initiated the connection, I am the Guest (White)
-    myColor = 'white'; 
+    myColor = 'white'; // If I initiated the connection, I am Guest (White)
+    gameMode = 'online';
 });
 
-copyIdBtn.addEventListener('click', () => {
-    navigator.clipboard.writeText(myId).then(() => {
-        alert("ID가 복사되었습니다!");
-    });
+aiModeBtn.addEventListener('click', () => {
+    gameMode = 'ai';
+    myColor = 'black'; // Player is always Black in AI mode
+    startGame();
+});
+
+backToMenuBtn.addEventListener('click', () => {
+    if (conn) conn.close();
+    resetGameUI();
 });
 
 function handleConnection(connection) {
     conn = connection;
-    
     conn.on('open', () => {
         statusEl.textContent = "연결 성공! 게임을 시작합니다.";
         startGame();
-        
-        // Send a handshake or ready signal if needed
         conn.send({ type: 'ready' });
     });
-
-    conn.on('data', (data) => {
-        handleData(data);
-    });
-
+    conn.on('data', handleData);
     conn.on('close', () => {
         alert("상대방과의 연결이 끊어졌습니다.");
         resetGameUI();
@@ -82,7 +78,7 @@ function handleConnection(connection) {
 
 function handleData(data) {
     if (data.type === 'move') {
-        placeStone(data.row, data.col, data.color, false); // false means 'not my move'
+        placeStone(data.row, data.col, data.color, false);
     } else if (data.type === 'reset') {
         resetBoard();
     }
@@ -93,7 +89,6 @@ function handleData(data) {
 function initBoard() {
     board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
     boardEl.innerHTML = '';
-    
     for (let r = 0; r < BOARD_SIZE; r++) {
         for (let c = 0; c < BOARD_SIZE; c++) {
             const cell = document.createElement('div');
@@ -108,7 +103,6 @@ function initBoard() {
 
 function startGame() {
     connectionPanel.style.display = 'none';
-    gameArea.classList.remove('hidden');
     gameArea.style.display = 'block';
     resetBoard();
 }
@@ -118,14 +112,12 @@ function resetGameUI() {
     connectionPanel.style.display = 'flex';
     gameActive = false;
     conn = null;
-    myColor = null;
 }
 
 function resetBoard() {
     board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
     const stones = document.querySelectorAll('.stone');
     stones.forEach(s => s.remove());
-    
     currentPlayer = 'black';
     gameActive = true;
     updateTurnIndicator();
@@ -133,104 +125,145 @@ function resetBoard() {
 }
 
 function handleCellClick(row, col) {
-    if (!gameActive) return;
-    if (currentPlayer !== myColor) {
-        // Not my turn
-        return;
-    }
-    if (board[row][col]) return; // Already occupied
+    if (!gameActive || board[row][col]) return;
+    if (gameMode === 'online' && currentPlayer !== myColor) return;
+    if (gameMode === 'ai' && currentPlayer !== 'black') return; // In AI mode, player is black
 
-    // Place my stone
-    placeStone(row, col, myColor, true);
+    placeStone(row, col, currentPlayer, true);
     
-    // Send move to opponent
-    if (conn && conn.open) {
-        conn.send({ type: 'move', row: row, col: col, color: myColor });
+    if (gameMode === 'online' && conn && conn.open) {
+        conn.send({ type: 'move', row, col, color: myColor });
+    }
+
+    if (gameMode === 'ai' && gameActive) {
+        // AI Turn
+        setTimeout(makeAiMove, 500);
     }
 }
 
 function placeStone(row, col, color, isMyMove) {
     board[row][col] = color;
-    
     const cell = document.querySelector(`.cell[data-row='${row}'][data-col='${col}']`);
     const stone = document.createElement('div');
     stone.classList.add('stone', color);
-    
-    // Mark last move
     document.querySelectorAll('.stone').forEach(s => s.classList.remove('last-move'));
     stone.classList.add('last-move');
-    
     cell.appendChild(stone);
 
     if (checkWin(row, col, color)) {
         gameActive = false;
-        turnIndicator.textContent = isMyMove ? "승리했습니다!" : "패배했습니다...";
-        turnIndicator.style.color = isMyMove ? 'var(--win-color)' : 'var(--error-color)';
+        const winnerName = (color === 'black' ? '흑' : '백');
+        turnIndicator.textContent = winnerName + " 승리!";
+        turnIndicator.style.color = 'var(--win-color)';
         resetBtn.style.display = 'block';
         return;
     }
 
-    // Switch turn
     currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
     updateTurnIndicator();
 }
 
 function updateTurnIndicator() {
     if (!gameActive) return;
-    
-    if (currentPlayer === myColor) {
-        turnIndicator.textContent = "나의 턴 (" + (myColor === 'black' ? '흑' : '백') + ")";
-        turnIndicator.style.color = 'var(--highlight)';
+    turnIndicator.style.color = (currentPlayer === myColor) ? 'var(--highlight)' : '#666';
+    const colorName = (currentPlayer === 'black' ? '흑' : '백');
+    if (gameMode === 'ai') {
+        turnIndicator.textContent = (currentPlayer === 'black' ? "나의 턴" : "AI 생각 중...");
     } else {
-        turnIndicator.textContent = "상대방 턴 (" + (currentPlayer === 'black' ? '흑' : '백') + ")";
-        turnIndicator.style.color = '#666';
+        turnIndicator.textContent = (currentPlayer === myColor ? "나의 턴" : "상대방 턴") + " (" + colorName + ")";
     }
 }
 
-resetBtn.addEventListener('click', () => {
-    resetBoard();
-    if (conn && conn.open) {
-        conn.send({ type: 'reset' });
+// --- AI Logic ---
+
+function makeAiMove() {
+    if (!gameActive) return;
+    const bestMove = getBestMove();
+    if (bestMove) {
+        placeStone(bestMove.row, bestMove.col, 'white', false);
     }
-});
+}
 
-// --- Win Detection Logic ---
+function getBestMove() {
+    let maxScore = -1;
+    let candidates = [];
 
-function checkWin(row, col, color) {
-    const directions = [
-        [0, 1],  // Horizontal
-        [1, 0],  // Vertical
-        [1, 1],  // Diagonal \
-        [1, -1]  // Diagonal /
-    ];
+    for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+            if (!board[r][c]) {
+                const score = calculateScore(r, c);
+                if (score > maxScore) {
+                    maxScore = score;
+                    candidates = [{row: r, col: c}];
+                } else if (score === maxScore) {
+                    candidates.push({row: r, col: c});
+                }
+            }
+        }
+    }
+    // Random choice among same-score moves
+    return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+function calculateScore(row, col) {
+    let score = 0;
+    const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
 
     for (const [dr, dc] of directions) {
-        let count = 1;
-        
-        // Check forward
-        for (let i = 1; i < 5; i++) {
-            const r = row + dr * i;
-            const c = col + dc * i;
-            if (isValid(r, c) && board[r][c] === color) count++;
-            else break;
-        }
-        
-        // Check backward
-        for (let i = 1; i < 5; i++) {
-            const r = row - dr * i;
-            const c = col - dc * i;
-            if (isValid(r, c) && board[r][c] === color) count++;
-            else break;
-        }
+        // Evaluate AI's potential (White)
+        score += evaluateLine(row, col, dr, dc, 'white');
+        // Evaluate Blocking player's potential (Black)
+        score += evaluateLine(row, col, dr, dc, 'black') * 0.8; // Slightly prioritize offense
+    }
+    return score;
+}
 
+function evaluateLine(row, col, dr, dc, color) {
+    let count = 1;
+    let block = 0;
+    
+    // Check both directions
+    [1, -1].forEach(dir => {
+        let r = row + dr * dir;
+        let c = col + dc * dir;
+        let lineCount = 0;
+        while (isValid(r, c) && board[r][c] === color) {
+            lineCount++;
+            r += dr * dir;
+            c += dc * dir;
+        }
+        if (!isValid(r, c) || (board[r][c] && board[r][c] !== color)) block++;
+        count += lineCount;
+    });
+
+    // Heuristic scoring
+    if (count >= 5) return 100000;
+    if (count === 4) return block === 0 ? 10000 : (block === 1 ? 2000 : 0);
+    if (count === 3) return block === 0 ? 1000 : (block === 1 ? 200 : 0);
+    if (count === 2) return block === 0 ? 100 : (block === 1 ? 20 : 0);
+    return count;
+}
+
+// --- Win Detection ---
+
+function checkWin(row, col, color) {
+    const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
+    for (const [dr, dc] of directions) {
+        let count = 1;
+        for (let i = 1; i < 5; i++) {
+            const r = row + dr * i, c = col + dc * i;
+            if (isValid(r, c) && board[r][c] === color) count++; else break;
+        }
+        for (let i = 1; i < 5; i++) {
+            const r = row - dr * i, c = col - dc * i;
+            if (isValid(r, c) && board[r][c] === color) count++; else break;
+        }
         if (count >= 5) return true;
     }
     return false;
 }
 
-function isValid(r, c) {
-    return r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE;
-}
+function isValid(r, c) { return r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE; }
 
-// Initial setup
+resetBtn.addEventListener('click', resetBoard);
 initBoard();

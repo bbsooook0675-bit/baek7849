@@ -84,8 +84,33 @@ button:hover {
     color: #666;
 }
 
-#game-area.hidden {
-    display: none;
+.mode-selection {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #eee;
+}
+
+#ai-mode-btn {
+    background-color: var(--win-color);
+    padding: 12px 24px;
+    font-size: 1.1rem;
+    width: 100%;
+}
+
+.divider {
+    margin-top: 1rem;
+    font-size: 0.8rem;
+    color: #999;
+}
+
+#back-to-menu-btn {
+    background-color: #666;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+}
+
+#game-area {
+    display: none; /* Default to hidden */
 }
 
 #board {
