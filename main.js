@@ -28,24 +28,52 @@ const resetBtn = document.getElementById('reset-btn');
 const backToMenuBtn = document.getElementById('back-to-menu-btn');
 const timeLeftEl = document.getElementById('time-left');
 
-// --- Audio Synthesis (Stone 'Tak' Sound) ---
+// --- Audio Synthesis (Realistic Stone 'Tak' Sound) ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 function playStoneSound() {
-    const oscillator = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
+    const now = audioCtx.currentTime;
     
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(150, audioCtx.currentTime); // Low thud
-    oscillator.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.1);
-    
-    gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-    
-    oscillator.start();
-    oscillator.stop(audioCtx.currentTime + 0.1);
+    // 1. 타격음 (High-frequency Click)
+    const clickOsc = audioCtx.createOscillator();
+    const clickGain = audioCtx.createGain();
+    clickOsc.type = 'triangle';
+    clickOsc.frequency.setValueAtTime(1500, now);
+    clickOsc.frequency.exponentialRampToValueAtTime(500, now + 0.05);
+    clickGain.gain.setValueAtTime(0.4, now);
+    clickGain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+    clickOsc.connect(clickGain);
+    clickGain.connect(audioCtx.destination);
+
+    // 2. 나무 판 울림 (Lower Thump)
+    const thumpOsc = audioCtx.createOscillator();
+    const thumpGain = audioCtx.createGain();
+    thumpOsc.type = 'sine';
+    thumpOsc.frequency.setValueAtTime(200, now);
+    thumpOsc.frequency.exponentialRampToValueAtTime(80, now + 0.1);
+    thumpGain.gain.setValueAtTime(0.3, now);
+    thumpGain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+    thumpOsc.connect(thumpGain);
+    thumpGain.connect(audioCtx.destination);
+
+    // 3. 텍스처 (Noise Burst for 'Tak')
+    const bufferSize = audioCtx.sampleRate * 0.02; // Very short burst
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = buffer;
+    const noiseGain = audioCtx.createGain();
+    noiseGain.gain.setValueAtTime(0.2, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.02);
+    noise.connect(noiseGain);
+    noiseGain.connect(audioCtx.destination);
+
+    clickOsc.start(now);
+    clickOsc.stop(now + 0.05);
+    thumpOsc.start(now);
+    thumpOsc.stop(now + 0.15);
+    noise.start(now);
+    noise.stop(now + 0.02);
 }
 
 // --- PeerJS & Mode Selection ---
