@@ -195,6 +195,13 @@ button:hover {
     font-size: 0.9rem;
 }
 
+#comments-section {
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 1px solid #eee;
+    text-align: left; /* Comments should align left */
+}
+
 /* Mobile optimizations */
 @media (max-width: 500px) {
     .container {
