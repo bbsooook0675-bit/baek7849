@@ -14,7 +14,12 @@
         
         <div id="connection-panel">
             <div class="mode-selection">
-                <button id="ai-mode-btn">AI와 대결하기 (혼자하기)</button>
+                <p>AI 난이도 선택</p>
+                <div class="ai-levels">
+                    <button class="ai-level-btn" data-level="beginner">초보</button>
+                    <button class="ai-level-btn" data-level="intermediate">중수</button>
+                    <button class="ai-level-btn" data-level="expert">고수</button>
+                </div>
                 <div class="divider">또는 온라인 대전</div>
             </div>
             
@@ -34,6 +39,7 @@
         <div id="game-area" class="hidden">
             <div class="game-info">
                 <button id="back-to-menu-btn">메뉴로</button>
+                <div id="timer-display">제한시간: <span id="time-left">30</span>s</div>
                 <span id="turn-indicator">대기 중...</span>
                 <button id="reset-btn" style="display: none;">다시 하기</button>
             </div>

@@ -83,27 +83,43 @@ button:hover {
     font-size: 0.9rem;
     color: #666;
 }
-
-.mode-selection {
-    margin-bottom: 1.5rem;
-    padding-bottom: 1.5rem;
-    border-bottom: 1px solid #eee;
+.mode-selection p {
+    font-weight: bold;
+    margin-bottom: 0.5rem;
 }
 
-#ai-mode-btn {
+.ai-levels {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.ai-level-btn {
+    flex: 1;
     background-color: var(--win-color);
-    padding: 12px 24px;
-    font-size: 1.1rem;
-    width: 100%;
 }
 
-.divider {
-    margin-top: 1rem;
-    font-size: 0.8rem;
-    color: #999;
+.ai-level-btn[data-level="intermediate"] {
+    background-color: var(--highlight);
+}
+
+.ai-level-btn[data-level="expert"] {
+    background-color: var(--error-color);
+}
+
+#timer-display {
+    font-size: 1rem;
+    color: var(--error-color);
+    font-weight: bold;
+}
+
+#time-left {
+    display: inline-block;
+    width: 1.5rem;
 }
 
 #back-to-menu-btn {
+...
     background-color: #666;
     padding: 6px 12px;
     font-size: 0.8rem;

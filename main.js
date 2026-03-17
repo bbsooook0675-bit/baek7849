@@ -6,10 +6,13 @@ let myId = null;
 // Game State
 const BOARD_SIZE = 15;
 let board = [];
-let currentPlayer = 'black'; // 'black' goes first
-let myColor = 'black'; // Assigned when connection is established or AI mode
+let currentPlayer = 'black';
+let myColor = 'black';
 let gameActive = false;
-let gameMode = 'online'; // 'online' or 'ai'
+let gameMode = 'online';
+let aiLevel = 'intermediate'; // beginner, intermediate, expert
+let timerInterval = null;
+let timeLeft = 30;
 
 // DOM Elements
 const myPeerIdEl = document.getElementById('my-peer-id');
@@ -22,73 +25,123 @@ const gameArea = document.getElementById('game-area');
 const boardEl = document.getElementById('board');
 const turnIndicator = document.getElementById('turn-indicator');
 const resetBtn = document.getElementById('reset-btn');
-const aiModeBtn = document.getElementById('ai-mode-btn');
 const backToMenuBtn = document.getElementById('back-to-menu-btn');
+const timeLeftEl = document.getElementById('time-left');
 
-// --- PeerJS Connection Setup ---
+// --- Audio Synthesis (Stone 'Tak' Sound) ---
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playStoneSound() {
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(150, audioCtx.currentTime); // Low thud
+    oscillator.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.1);
+    
+    gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + 0.1);
+}
+
+// --- PeerJS & Mode Selection ---
 
 peer.on('open', (id) => {
     myId = id;
     myPeerIdEl.textContent = id;
-    statusEl.textContent = "상대방에게 내 ID를 공유하거나, 상대방 ID를 입력하세요.";
 });
 
 peer.on('connection', (connection) => {
     handleConnection(connection);
-    myColor = 'black'; // If I received a connection, I am Host (Black)
+    myColor = 'black';
     gameMode = 'online';
-    statusEl.textContent = "상대방이 연결되었습니다! 게임을 시작합니다.";
     startGame();
 });
 
 connectBtn.addEventListener('click', () => {
     const opponentId = opponentIdInput.value.trim();
     if (!opponentId) return alert("상대방 ID를 입력하세요.");
-    
     const connection = peer.connect(opponentId);
     handleConnection(connection);
-    myColor = 'white'; // If I initiated the connection, I am Guest (White)
+    myColor = 'white';
     gameMode = 'online';
 });
 
-aiModeBtn.addEventListener('click', () => {
-    gameMode = 'ai';
-    myColor = 'black'; // Player is always Black in AI mode
-    startGame();
+document.querySelectorAll('.ai-level-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        aiLevel = btn.dataset.level;
+        gameMode = 'ai';
+        myColor = 'black';
+        startGame();
+    });
 });
 
 backToMenuBtn.addEventListener('click', () => {
     if (conn) conn.close();
+    stopTimer();
     resetGameUI();
 });
 
 function handleConnection(connection) {
     conn = connection;
     conn.on('open', () => {
-        statusEl.textContent = "연결 성공! 게임을 시작합니다.";
         startGame();
         conn.send({ type: 'ready' });
     });
-    conn.on('data', handleData);
+    conn.on('data', (data) => {
+        if (data.type === 'move') {
+            placeStone(data.row, data.col, data.color, false);
+        } else if (data.type === 'reset') {
+            resetBoard();
+        }
+    });
     conn.on('close', () => {
-        alert("상대방과의 연결이 끊어졌습니다.");
+        alert("연결이 끊어졌습니다.");
         resetGameUI();
     });
 }
 
-function handleData(data) {
-    if (data.type === 'move') {
-        placeStone(data.row, data.col, data.color, false);
-    } else if (data.type === 'reset') {
-        resetBoard();
+// --- Timer Logic ---
+
+function startTimer() {
+    stopTimer();
+    timeLeft = 30;
+    timeLeftEl.textContent = timeLeft;
+    
+    timerInterval = setInterval(() => {
+        timeLeft--;
+        timeLeftEl.textContent = timeLeft;
+        if (timeLeft <= 0) {
+            stopTimer();
+            timeOutLose();
+        }
+    }, 1000);
+}
+
+function stopTimer() {
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
     }
+}
+
+function timeOutLose() {
+    gameActive = false;
+    const winnerColor = currentPlayer === 'black' ? '백' : '흑';
+    turnIndicator.textContent = `시간 초과! ${winnerColor} 승리!`;
+    turnIndicator.style.color = 'var(--error-color)';
+    resetBtn.style.display = 'block';
 }
 
 // --- Game Logic ---
 
 function initBoard() {
-    board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
     boardEl.innerHTML = '';
+    board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
     for (let r = 0; r < BOARD_SIZE; r++) {
         for (let c = 0; c < BOARD_SIZE; c++) {
             const cell = document.createElement('div');
@@ -111,23 +164,23 @@ function resetGameUI() {
     gameArea.style.display = 'none';
     connectionPanel.style.display = 'flex';
     gameActive = false;
-    conn = null;
+    stopTimer();
 }
 
 function resetBoard() {
     board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
-    const stones = document.querySelectorAll('.stone');
-    stones.forEach(s => s.remove());
+    document.querySelectorAll('.stone').forEach(s => s.remove());
     currentPlayer = 'black';
     gameActive = true;
     updateTurnIndicator();
     resetBtn.style.display = 'none';
+    startTimer();
 }
 
 function handleCellClick(row, col) {
     if (!gameActive || board[row][col]) return;
     if (gameMode === 'online' && currentPlayer !== myColor) return;
-    if (gameMode === 'ai' && currentPlayer !== 'black') return; // In AI mode, player is black
+    if (gameMode === 'ai' && currentPlayer !== 'black') return;
 
     placeStone(row, col, currentPlayer, true);
     
@@ -136,8 +189,8 @@ function handleCellClick(row, col) {
     }
 
     if (gameMode === 'ai' && gameActive) {
-        // AI Turn
-        setTimeout(makeAiMove, 500);
+        stopTimer();
+        setTimeout(makeAiMove, 600);
     }
 }
 
@@ -149,9 +202,12 @@ function placeStone(row, col, color, isMyMove) {
     document.querySelectorAll('.stone').forEach(s => s.classList.remove('last-move'));
     stone.classList.add('last-move');
     cell.appendChild(stone);
+    
+    playStoneSound();
 
     if (checkWin(row, col, color)) {
         gameActive = false;
+        stopTimer();
         const winnerName = (color === 'black' ? '흑' : '백');
         turnIndicator.textContent = winnerName + " 승리!";
         turnIndicator.style.color = 'var(--win-color)';
@@ -161,20 +217,23 @@ function placeStone(row, col, color, isMyMove) {
 
     currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
     updateTurnIndicator();
+    startTimer();
 }
 
 function updateTurnIndicator() {
     if (!gameActive) return;
-    turnIndicator.style.color = (currentPlayer === myColor) ? 'var(--highlight)' : '#666';
+    const isMyTurn = (currentPlayer === myColor);
+    turnIndicator.style.color = isMyTurn ? 'var(--highlight)' : '#666';
     const colorName = (currentPlayer === 'black' ? '흑' : '백');
-    if (gameMode === 'ai') {
-        turnIndicator.textContent = (currentPlayer === 'black' ? "나의 턴" : "AI 생각 중...");
+    
+    if (gameMode === 'ai' && currentPlayer === 'white') {
+        turnIndicator.textContent = "AI 생각 중...";
     } else {
-        turnIndicator.textContent = (currentPlayer === myColor ? "나의 턴" : "상대방 턴") + " (" + colorName + ")";
+        turnIndicator.textContent = (isMyTurn ? "나의 턴" : "상대방 턴") + " (" + colorName + ")";
     }
 }
 
-// --- AI Logic ---
+// --- AI Logic (Advanced Scoring) ---
 
 function makeAiMove() {
     if (!gameActive) return;
@@ -188,10 +247,17 @@ function getBestMove() {
     let maxScore = -1;
     let candidates = [];
 
+    // Difficulty Factor: Add randomness to Beginner/Intermediate
+    let randomness = 0;
+    if (aiLevel === 'beginner') randomness = 0.4;
+    else if (aiLevel === 'intermediate') randomness = 0.1;
+
     for (let r = 0; r < BOARD_SIZE; r++) {
         for (let c = 0; c < BOARD_SIZE; c++) {
             if (!board[r][c]) {
-                const score = calculateScore(r, c);
+                let score = calculateScore(r, c);
+                if (Math.random() < randomness) score *= 0.5; // Beginner makes mistakes
+
                 if (score > maxScore) {
                     maxScore = score;
                     candidates = [{row: r, col: c}];
@@ -201,19 +267,19 @@ function getBestMove() {
             }
         }
     }
-    // Random choice among same-score moves
     return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
 function calculateScore(row, col) {
     let score = 0;
     const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
+    
+    // Expert AI has higher defensive weights
+    const defenseMultiplier = (aiLevel === 'expert') ? 1.2 : 0.8;
 
     for (const [dr, dc] of directions) {
-        // Evaluate AI's potential (White)
-        score += evaluateLine(row, col, dr, dc, 'white');
-        // Evaluate Blocking player's potential (Black)
-        score += evaluateLine(row, col, dr, dc, 'black') * 0.8; // Slightly prioritize offense
+        score += evaluateLine(row, col, dr, dc, 'white'); // Offense (AI)
+        score += evaluateLine(row, col, dr, dc, 'black') * defenseMultiplier; // Defense (Player)
     }
     return score;
 }
@@ -221,30 +287,20 @@ function calculateScore(row, col) {
 function evaluateLine(row, col, dr, dc, color) {
     let count = 1;
     let block = 0;
-    
-    // Check both directions
     [1, -1].forEach(dir => {
-        let r = row + dr * dir;
-        let c = col + dc * dir;
+        let r = row + dr * dir, c = col + dc * dir;
         let lineCount = 0;
-        while (isValid(r, c) && board[r][c] === color) {
-            lineCount++;
-            r += dr * dir;
-            c += dc * dir;
-        }
+        while (isValid(r, c) && board[r][c] === color) { lineCount++; r += dr * dir; c += dc * dir; }
         if (!isValid(r, c) || (board[r][c] && board[r][c] !== color)) block++;
         count += lineCount;
     });
 
-    // Heuristic scoring
     if (count >= 5) return 100000;
-    if (count === 4) return block === 0 ? 10000 : (block === 1 ? 2000 : 0);
-    if (count === 3) return block === 0 ? 1000 : (block === 1 ? 200 : 0);
-    if (count === 2) return block === 0 ? 100 : (block === 1 ? 20 : 0);
+    if (count === 4) return block === 0 ? 15000 : (block === 1 ? 4000 : 0);
+    if (count === 3) return block === 0 ? 3000 : (block === 1 ? 600 : 0);
+    if (count === 2) return block === 0 ? 400 : (block === 1 ? 50 : 0);
     return count;
 }
-
-// --- Win Detection ---
 
 function checkWin(row, col, color) {
     const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
