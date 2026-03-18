@@ -351,3 +351,51 @@ function isValid(r, c) { return r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_
 
 resetBtn.addEventListener('click', resetBoard);
 initBoard();
+
+// --- Partnership Form AJAX Submission ---
+const partnershipForm = document.querySelector('#partnership-section form');
+const formStatus = document.getElementById('form-status');
+
+if (partnershipForm) {
+    partnershipForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(partnershipForm);
+        const submitBtn = partnershipForm.querySelector('button[type="submit"]');
+        
+        // Disable button and show loading state
+        submitBtn.disabled = true;
+        const originalBtnText = submitBtn.textContent;
+        submitBtn.textContent = '보내는 중...';
+        formStatus.textContent = '';
+
+        try {
+            const response = await fetch(partnershipForm.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                formStatus.textContent = '문의가 성공적으로 전송되었습니다. 감사합니다!';
+                formStatus.style.color = 'var(--win-color)';
+                partnershipForm.reset();
+            } else {
+                const data = await response.json();
+                if (data.errors) {
+                    formStatus.textContent = data.errors.map(error => error.message).join(", ");
+                } else {
+                    formStatus.textContent = '전송 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+                }
+                formStatus.style.color = 'var(--error-color)';
+            }
+        } catch (error) {
+            formStatus.textContent = '네트워크 오류가 발생했습니다. 연결 상태를 확인해주세요.';
+            formStatus.style.color = 'var(--error-color)';
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalBtnText;
+        }
+    });
+}

@@ -218,6 +218,56 @@ button:hover {
     text-align: left; /* Comments should align left */
 }
 
+/* Partnership Inquiry Section Styles */
+#partnership-section {
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 1px solid #eee;
+    text-align: left;
+}
+
+#partnership-section h3 {
+    color: var(--line-color);
+    margin-bottom: 0.5rem;
+}
+
+#partnership-section p {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.form-group input, .form-group textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+.form-group textarea {
+    height: 120px;
+    resize: vertical;
+}
+
+#partnership-section button {
+    width: 100%;
+    padding: 12px;
+    font-size: 1rem;
+}
+
 /* Mobile optimizations */
 @media (max-width: 500px) {
     .container {
